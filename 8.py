@@ -1,44 +1,40 @@
 import numpy as np
-import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Embedding, Dropout
+from tensorflow.keras.layers import Embedding, LSTM, Dense
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-import matplotlib.pyplot as plt
+from tensorflow.keras.utils import to_categorical
 
-# Load and preprocess text
-text = open('your_text_file.txt', 'r').read().lower()
+# Sample text data
+text = "This is a simple example of language modeling using RNN."
 
-# Tokenize and generate sequences
+# Preprocess the text
 tokenizer = Tokenizer()
 tokenizer.fit_on_texts([text])
 total_words = len(tokenizer.word_index) + 1
-seqs = [seq[:i+1] for line in text.split('\n') for seq in [tokenizer.texts_to_sequences([line])[0]] for i in range(1, len(seq))]
-max_len = max(len(seq) for seq in seqs)
-X = pad_sequences(seqs, maxlen=max_len, padding='pre')[:, :-1]
-y = tf.keras.utils.to_categorical([seq[-1] for seq in seqs], total_words)
+sequences = tokenizer.texts_to_sequences([text])[0]
 
-# Build and train model
+
+
+# Prepare input and output sequences
+input_sequences = [sequences[:i+1] for i in range(1, len(sequences))]
+input_sequences = pad_sequences(input_sequences, padding='pre')  # Pad sequences
+X, y = input_sequences[:, :-1], to_categorical(input_sequences[:, -1],total_words)
+
+# Build the RNN model
 model = Sequential([
-    Embedding(total_words, 100, input_length=max_len - 1),
-    LSTM(150, return_sequences=True),
-    Dropout(0.2),
-    LSTM(150),
-    Dropout(0.2),
+    Embedding(total_words, 10, input_length=X.shape[1]),
+    LSTM(50),
     Dense(total_words, activation='softmax')
 ])
 model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-history = model.fit(X, y, epochs=100, verbose=1)
 
-# Generate text
-def gen_text(seed, words, model, max_len):
-    for _ in range(words):
-        seed += " " + tokenizer.index_word[np.argmax(model.predict(pad_sequences([tokenizer.texts_to_sequences([seed])[0]], maxlen=max_len - 1, padding='pre'), verbose=0))]
-    return seed
+# Train the model
+model.fit(X, y, epochs=50, verbose=0)
 
-# Generate and plot
-print(gen_text("your seed text", 10, model, max_len))
-plt.plot(history.history['accuracy'], label='Accuracy')
-plt.plot(history.history['loss'], label='Loss')
-plt.legend()
-plt.show()
+# Predict the next word
+seed_text = "This is a"
+token_list = tokenizer.texts_to_sequences([seed_text])[0]
+token_list = pad_sequences([token_list], maxlen=X.shape[1], padding='pre')
+predicted_word = tokenizer.index_word[np.argmax(model.predict(token_list))]
+print(f"Predicted word: {predicted_word}")
